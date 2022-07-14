@@ -251,6 +251,48 @@ std::string Isa::isaName() const {
   return std::string(hsaIsaNamePrefix) + targetId();
 }
 
+template <class T, std::size_t N>
+static bool Contains(const std::array<T, N>& arr, const T& value) {
+  return std::find(std::begin(arr), std::end(arr), value) != std::end(arr);
+}
+
+static bool IsVersionCompatible(const Isa &codeObjectIsa,
+                                const Isa &agentIsa) {
+  if (codeObjectIsa.versionMajor() == agentIsa.versionMajor() &&
+      codeObjectIsa.versionMinor() == agentIsa.versionMinor()) {
+
+      if (codeObjectIsa.versionStepping() == agentIsa.versionStepping()) {
+        return true; // exact match
+      }
+
+      // The code object and the agent may sometimes be compatible if
+      // they differ only by stepping version.
+      if (codeObjectIsa.versionMajor() == 9 &&
+          codeObjectIsa.versionMinor() == 0) {
+        const std::array<uint32_t, 4> equivalent_gfx90x = { 0, 2, 9, 12 };
+        const std::array<uint32_t, 5> supserset_gfx90x = { 0, 2, 6, 9, 12 };
+        if (Contains(equivalent_gfx90x, codeObjectIsa.versionStepping()) &&
+            Contains(supserset_gfx90x, agentIsa.versionStepping())) {
+          return true; // gfx900 compatible object and agent
+        }
+      } else if (codeObjectIsa.versionMajor() == 10) {
+        if (codeObjectIsa.versionMinor() == 1) {
+          // gfx1010 object compatible with all RDNA1 agents
+          if (codeObjectIsa.versionStepping() == 0) {
+            return true;
+          // non-gfx1010 object only compatible with non-gfx1010 agents
+          } else if (agentIsa.versionStepping() != 0) {
+            return true;
+          }
+        } else if (codeObjectIsa.versionMinor() == 3) {
+          return true; // gfx1030 compatible object and agent
+        }
+      }
+    }
+
+  return false;
+}
+
 bool Isa::isCompatible(const Isa &codeObjectIsa, const Isa &agentIsa) {
   bool isGeneric = std::strstr(codeObjectIsa.targetId(), "generic") != nullptr;
   if (isGeneric) {
@@ -273,9 +315,7 @@ bool Isa::isCompatible(const Isa &codeObjectIsa, const Isa &agentIsa) {
     }
 #endif
   } else {
-    if (codeObjectIsa.versionMajor() != agentIsa.versionMajor() ||
-        codeObjectIsa.versionMinor() != agentIsa.versionMinor() ||
-        codeObjectIsa.versionStepping() != agentIsa.versionStepping())
+    if (!IsVersionCompatible(codeObjectIsa, agentIsa))
       return false;
     assert(codeObjectIsa.isSrameccSupported() == agentIsa.isSrameccSupported() &&
            agentIsa.sramecc() != Feature::Any);
