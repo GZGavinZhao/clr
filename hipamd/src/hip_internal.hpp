@@ -486,7 +486,7 @@ namespace hip {
     void Reset();
 
     hip::Stream* NullStream();
-    Stream* GetNullStream();
+    Stream* GetNullStream() const {return null_stream_;};
 
     void SetActiveStatus() {
       isActive_ = true;
