@@ -570,7 +570,7 @@ hipError_t ihipLaunchKernel(const void* hostFunction, dim3 gridDim, dim3 blockDi
     if (hip_error == hipErrorSharedObjectInitFailed) {
       return hip_error;
     } else {
-      return hipErrorInvalidDeviceFunction;
+      return hip_error;
     }
   }
   size_t globalWorkSizeX = static_cast<size_t>(gridDim.x) * blockDim.x;
