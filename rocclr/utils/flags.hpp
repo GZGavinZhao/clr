@@ -245,6 +245,8 @@ release(cstring, HIPRTC_LINK_OPTIONS_APPEND, "",                              \
         "Set link options needed for hiprtc compilation")                     \
 release(bool, HIP_VMEM_MANAGE_SUPPORT, true,                                  \
         "Virtual Memory Management Support")                                  \
+release(bool, HIP_ALWAYS_USE_NEW_COMGR_UNBUNDLING_ACTION, false,              \
+        "Force to always use new comgr unbundling action")                    \
 
 namespace amd {
 
