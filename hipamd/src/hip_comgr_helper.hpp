@@ -79,6 +79,14 @@ const std::map<std::string, std::string>& GenericTargetMapping();
 // Return true if agent target compatible with generic code object target, false otherwise.
 // Both targets should not have any feature.
 bool IsCompatibleWithGenericTarget(const std::string& coTarget, const std::string& agentTarget);
+
+// Return true if agent target is compatible with code object target, false otherwise,
+// taking into account of generic targets if `genericVersion` is greater than or
+// equal to `EF_AMDGPU_GENERIC_VERSION_MIN`.
+//
+// In other words, to check compatibility without considering generic target, pass `0`
+// as `genericVersion`.
+bool IsCodeObjectCompatibleWithDevice(std::string coTarget, std::string agentTarget, unsigned int genericVersion);
 }  // namespace helpers
 
 struct LinkArguments {

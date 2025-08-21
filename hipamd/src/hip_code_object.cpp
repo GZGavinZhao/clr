@@ -508,54 +508,6 @@ static bool getTripleTargetID(std::string bundled_co_entry_id, const void* code_
   return true;
 }
 
-static bool isCodeObjectCompatibleWithDevice(std::string co_triple_target_id,
-                std::string agent_triple_target_id, unsigned int genericVersion) {
-  // Primitive Check
-  if (co_triple_target_id == agent_triple_target_id) return true;
-
-  // Parse code object triple target id
-  if (!consume(co_triple_target_id, std::string(kAmdgcnTargetTriple) + '-')) {
-    return false;
-  }
-
-  std::string co_processor;
-  char co_sram_ecc, co_xnack;
-  if (!getTargetIDValue(co_triple_target_id, co_processor, co_sram_ecc, co_xnack)) {
-    return false;
-  }
-
-  if (!co_triple_target_id.empty()) return false;
-
-  // Parse agent isa triple target id
-  if (!consume(agent_triple_target_id, std::string(kAmdgcnTargetTriple) + '-')) {
-    return false;
-  }
-
-  std::string agent_isa_processor;
-  char isa_sram_ecc, isa_xnack;
-  if (!getTargetIDValue(agent_triple_target_id, agent_isa_processor, isa_sram_ecc, isa_xnack)) {
-    return false;
-  }
-
-  if (!agent_triple_target_id.empty()) return false;
-
-  // Check for compatibility
-  if (genericVersion >= EF_AMDGPU_GENERIC_VERSION_MIN) {
-    // co_processor is generic target
-    if (!helpers::IsCompatibleWithGenericTarget(co_processor, agent_isa_processor))
-      return false;
-  } else if (agent_isa_processor != co_processor) {
-    return false;
-  }
-  if (co_sram_ecc != ' ') {
-    if (co_sram_ecc != isa_sram_ecc) return false;
-  }
-  if (co_xnack != ' ') {
-    if (co_xnack != isa_xnack) return false;
-  }
-  return true;
-}
-
 bool CodeObject::QueryGenericTarget(std::string agentTarget, std::string& processor,
 		char& sram_ecc, char& xnack) {
   static const std::string head = std::string(kAmdgcnTargetTriple) + '-';
@@ -651,7 +603,7 @@ hipError_t CodeObject::extractCodeObjectFromFatBinary(
           continue; // Generic target already found, no need to check another generic
         }
       }
-      if (isCodeObjectCompatibleWithDevice(co_triple_target_id, agent_triple_target_ids[dev],
+      if (helpers::IsCodeObjectCompatibleWithDevice(co_triple_target_id, agent_triple_target_ids[dev],
         genericVersion)) {
         if (code_objs[dev].first == nullptr) --num_code_objs;
         code_objs[dev] = std::make_pair(image, image_size);
@@ -939,7 +891,7 @@ hipError_t CodeObject::extractCodeObjectFromFatBinaryUsingComgr(
         }
         ClPrint(amd::LOG_DEBUG, amd::LOG_COMGR, "agent_triple_target_ids[%zu]=%s, bundleEntryId=%s",
                 dev, agent_triple_target_ids[dev].c_str(), bundleEntryId.c_str());
-        if (isCodeObjectCompatibleWithDevice(bundleEntryId, agent_triple_target_ids[dev],
+        if (helpers::IsCodeObjectCompatibleWithDevice(bundleEntryId, agent_triple_target_ids[dev],
                                              genericVersion)) {
           if (itemData == nullptr) {
             itemSize = 0;

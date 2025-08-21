@@ -427,7 +427,7 @@ bool UnbundleBitCode(const std::vector<char>& bundled_llvm_bitcode, const std::s
 
     // Check if the device id and code object id are compatible
     unsigned genericVersion = getGenericVersion(image);
-    if (isCodeObjectCompatibleWithDevice(bundleEntryId, isa, genericVersion)) {
+    if (IsCodeObjectCompatibleWithDevice(bundleEntryId, isa, genericVersion)) {
       co_offset = (reinterpret_cast<uintptr_t>(image) - reinterpret_cast<uintptr_t>(data));
       co_size = image_size;
       break;
@@ -1112,6 +1112,95 @@ bool IsCompatibleWithGenericTarget(const std::string& coTarget, const std::strin
   auto search = map.find(agentTarget);
   return search != map.end() && coTarget == search->second;
 }
+
+struct GfxPattern {
+  std::string root;
+  std::string suffixes;
+};
+
+static bool matches(const GfxPattern& p, const std::string& s) {
+  if (p.root.size() + 1 != s.size()) {
+    return false;
+  }
+  if (0 != std::memcmp(p.root.data(), s.data(), p.root.size())) {
+    return false;
+  }
+  return p.suffixes.find(s[p.root.size()]) != std::string::npos;
+}
+
+static bool isGfx900EquivalentProcessor(const std::string& processor) {
+  return matches(GfxPattern{"gfx90", "029c"}, processor);
+}
+
+static bool isGfx900SupersetProcessor(const std::string& processor) {
+  return matches(GfxPattern{"gfx90", "0269c"}, processor);
+}
+
+static bool isGfx1030EquivalentProcessor(const std::string& processor) {
+  return matches(GfxPattern{"gfx103", "0123456"}, processor);
+}
+
+static bool isGfx1010EquivalentProcessor(const std::string& processor) {
+  return matches(GfxPattern{"gfx101", "0"}, processor);
+}
+
+static bool isGfx1010SupersetProcessor(const std::string& processor) {
+  return matches(GfxPattern{"gfx101", "0123"}, processor);
+}
+
+bool IsCodeObjectCompatibleWithDevice(std::string co_triple_target_id,
+                std::string agent_triple_target_id, unsigned int genericVersion) {
+  // Primitive Check
+  if (co_triple_target_id == agent_triple_target_id) return true;
+
+  // Parse code object triple target id
+  if (!consume(co_triple_target_id, std::string(AMDGCN_TARGET_TRIPLE) + '-')) {
+    return false;
+  }
+
+  std::string co_processor;
+  char co_sram_ecc, co_xnack;
+  if (!getTargetIDValue(co_triple_target_id, co_processor, co_sram_ecc, co_xnack)) {
+    return false;
+  }
+
+  if (!co_triple_target_id.empty()) return false;
+
+  // Parse agent isa triple target id
+  if (!consume(agent_triple_target_id, std::string(AMDGCN_TARGET_TRIPLE) + '-')) {
+    return false;
+  }
+
+  std::string agent_isa_processor;
+  char isa_sram_ecc, isa_xnack;
+  if (!getTargetIDValue(agent_triple_target_id, agent_isa_processor, isa_sram_ecc, isa_xnack)) {
+    return false;
+  }
+
+  if (!agent_triple_target_id.empty()) return false;
+
+  // Check for compatibility
+  if (genericVersion >= EF_AMDGPU_GENERIC_VERSION_MIN) {
+    // co_processor is generic target
+    if (!helpers::IsCompatibleWithGenericTarget(co_processor, agent_isa_processor))
+      return false;
+  } else if (agent_isa_processor != co_processor) {
+    if (isGfx900SupersetProcessor(agent_isa_processor) && isGfx900EquivalentProcessor(co_processor)) {
+    } else if (isGfx1010SupersetProcessor(agent_isa_processor) && isGfx1010EquivalentProcessor(co_processor)) {
+    } else if (isGfx1030EquivalentProcessor(agent_isa_processor) && isGfx1030EquivalentProcessor(co_processor)) {
+    } else {
+      return false;
+    }
+  }
+  if (co_sram_ecc != ' ') {
+    if (co_sram_ecc != isa_sram_ecc) return false;
+  }
+  if (co_xnack != ' ') {
+    if (co_xnack != isa_xnack) return false;
+  }
+  return true;
+}
+
 }  // namespace helpers
 
 std::vector<std::string> getLinkOptions(const LinkArguments& args) {
